@@ -13,29 +13,24 @@ logger = logging.getLogger()
 
 
 class Block:
-    """
-    Block placeholder obj (for structure).
-    """
     def __init__(self, msgs, block_id, sig):
         self.msgs = msgs
         self.block_id = block_id
         self.sig = sig
 
     def __str__(self):
-        pass
+        msg_strs = "\n".join([str(m) for m in self.msgs])
+        return f"msgs: [{msg_strs}], block_id:{block_id}, sig:{sig}"
 
 
 class Message:
-    """
-    Message placeholder obj (for structure).
-    """
     def __init__(self, msg, msg_id, hmac):
         self.msg = msg
         self.msg_id = msg_id
         self.hmac = hmac
 
     def __str__(self):
-        pass
+        return f"[msg:{self.msg}, msg_id:{self.msg_id}, hmac:{self.hmac}]"
 
 
 class Emlog:
@@ -56,8 +51,9 @@ class Emlog:
         # Derive root logging key (RLK) from the root secret
         self.rlk = self._derive_key(rlk_secret)
 
-        # Generate signing key pair
-        self.sig_k, self.ver_k = self._generate_ecdsa_key_pair()
+        # Generate ECDSA key-pair for signing message blocks w/SECP256R1 curve
+        self.sig_k = ec.generate_private_key(ec.SECP256R1(), backend)
+        self.ver_k = sig_k.public_key()
 
         # Derive initial IK and block key
         self.block_id = 1
@@ -66,23 +62,10 @@ class Emlog:
         self.block_list = []
         self.msg_id = 1
         logger.debug(f"rlk: {self.rlk}")
-        logger.debug(f"(sk, pk): {self.sig_k, self.ver_k}")
+        logger.debug(f"(sig_k, ver_k): {self.sig_k, self.ver_k}")
         logger.debug(f"current_ik: {self.current_ik}")
         logger.debug(f"current_bk: {self.current_bk}")
         logger.debug(f"block_id: {self.block_id}")
-        
-
-    def _generate_ecdsa_key_pair(self):
-        """
-        Generates ECDSA key-pair for signing message blocks (SECP256R1 curve).
-    
-        Output:
-        sig_k : Signing key
-        ver_k : Verification key
-        """
-        sig_k = ec.generate_private_key(ec.SECP256R1(), backend)
-        ver_k = sig_k.public_key()
-        return (sig_k, ver_k)
 
 
     def _derive_key(self, k, item_id=0):
@@ -96,17 +79,23 @@ class Emlog:
 
     def _generate_block_sig(self):
         """
-        Generate block signature from the current list of messages under
-        the signing key generated in _generate_ecdsa_key_pair(self).
+        Generates block signature from the current list of messages under sig_k.
+
+        SECP256R1 sig. is computed over h(m_1.hmac, m_2.hmac, ..., m_n.hmac)).
 
         Output:
         sig : Block signature
         """
         logger.debug("***** Generating block signature *****")
-        # Generate signature
-        # Compute sig(h(m1.hmac, m2.hmac, ..., mn.hmac))
-        raise NotImplementedError()
-
+        # Initialise hash object
+        digest = hashes.Hash(hashes.SHA256(), backend=backend)
+        for m in self.current_block_msgs:
+            logger.debug(f"Hashing {f}")
+            digest.update(m)
+        digest.finalize()
+        
+        # Generate signature from self.sig_k
+        
 
     def _store(self):
         raise NotImplementedError()
@@ -139,6 +128,8 @@ class Emlog:
 
         # Update with new Message object
         self.current_block_msgs.append(Message(msg, self.msg_id, msg_hmac))
+        self.msg_id += 1
+        logger.debug(f"msg_id: {self.msg_id}")
 
         # Check whether the block limit is reached; if so, create new Block
         # object and insert this block's msg list
