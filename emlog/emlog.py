@@ -59,7 +59,7 @@ class Emlog:
         self.block_id = 1
         self.current_ik = self._derive_key(self.rlk, self.block_id)
         self.current_bk = self._derive_key(self.current_ik, self.block_id)
-        self.block_list = []
+        self.blocks = []
         self.msg_id = 1
         logger.debug(f"rlk: {self.rlk}")
         logger.debug(f"(sig_k, ver_k): {self.sig_k, self.ver_k}")
@@ -69,6 +69,15 @@ class Emlog:
 
 
     def _derive_key(self, k, item_id=0):
+        """
+        Derives a new key using Krawczyk's HKDF method using SHA256.
+
+        Input:
+        k : Key material from which to derive a new key.
+        item_id : Integer, e.g. message ID, to use as a quasi-salt.
+
+        Output: Fresh key derived from k and item_id using HKDF.
+        """
         hkdf = HKDF(algorithm=hashes.SHA256(),
                     length=32,
                     salt=None,
@@ -79,41 +88,43 @@ class Emlog:
 
     def _generate_block_sig(self):
         """
-        Generates block signature from the current list of messages under sig_k.
-
-        SECP256R1 sig. is computed over h(m_1.hmac, m_2.hmac, ..., m_n.hmac)).
+        Generates block signature from the current list of message HMACS
+        under sig_k over h(m_1.hmac, m_2.hmac, ..., m_n.hmac).
 
         Output:
-        sig : Block signature
+        sig : Block signature (using SECP256R1).
         """
-        logger.debug("***** Generating block signature *****")
+        logger.verbose("***** Generating block signature *****")
         digest = hashes.Hash(hashes.SHA256(), backend=backend)
         for m in self.current_block_msgs:
-            logger.debug(f"Hashing {m}")
+            logger.verbose(f"Hashing {m}")
             digest.update(m.hmac)
         digest_bytes = digest.finalize()
         return self.sig_k.sign(digest_bytes,
                                ec.ECDSA(hashes.SHA256()))
 
-    def _store(self):
+    def _store_blocks(self):
+        logger.verbose("Storing in-memory blocks to file...")
+        
+
         raise NotImplementedError()
 
 
     def insert(self, msg):
         """
         Inserts a new message; integrity protection is applied transparently
-        using HMACs keyed under message keys derived in a chained fashion.
+        using HMACs keyed under message keys derived in a chained manner.
 
         Input:
         msg : Message string (UTF-8 encoded)
         """
-        logger.debug(f"msg: {msg}")
+        logger.verbose(f"Inserting msg: {msg}")
 
-        # Derive new message key from current block key if msg_id == 0,
-        # otherwise derive from previous message key
+        # Derive new message key from current block key if msg_id == 0
+        # and initialise new block message list, otherwise derive
+        # new message key from previous message key and new msg_id
         if self.msg_id == 1:
             self.current_mk = self._derive_key(self.current_bk, self.msg_id)
-            # Initialise list for maintaining current block message objs
             self.current_block_msgs = []
         else:
             self.current_mk = self._derive_key(self.current_mk, self.msg_id)
@@ -132,26 +143,23 @@ class Emlog:
         # Check whether the block limit is reached; if so, create new Block
         # object and insert this block's msg list
         if self.msg_id == self.m:
-            logger.debug(f"***** Block limit reached *****")
+            logger.debug("***** Block limit reached *****")
             logger.debug(f"m: {self.m}, msg_id: {self.msg_id}")
             sig = self._generate_block_sig()
             self.block_id += 1
             self.msg_id = 1
 
             # Append in-memory block list with new Block object
-            self.block_list.append(Block(self.current_block_msgs, self.block_id, sig))
+            self.blocks.append(Block(self.current_block_msgs, self.block_id, sig))
 
             # Check if in-memory block limit, c, is reached; if so,
             # securely store to file and reset the block list.
             # After this, derive a new IK and, from it, derive a new BK.
             if self.block_id == self.c:
-                # TODO store current block list to file
-                self._store()
-
-
-                # Reset block list
-                del self.block_list
-                self.block_list = []
+                logger.debug("***** In-memory block limit reached *****")
+                self._store_blocks()
+                del self.blocks
+                self.blocks = []
 
                 # Derive new IK and BK
                 self.current_ik = self._derive_key(self.current_ik, self.block_id)
