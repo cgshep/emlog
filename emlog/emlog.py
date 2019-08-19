@@ -1,16 +1,22 @@
 import os
 import logging
+import pickle
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from datetime import date
 
 __author__ = "Carlton Shepherd"
 
 backend = default_backend()
 logger = logging.getLogger()
 
+AES_GCM_KEY_BITS = 192
+AES_GCM_IV_BYTES = 16
+SHA256_BYTES = 32
 
 class Block:
     def __init__(self, msgs, block_id, sig):
@@ -34,7 +40,7 @@ class Message:
 
 
 class Emlog:
-    def __init__(self, rlk_secret, m=32, c=8, encoding="utf8"):
+    def __init__(self, rlk_secret, storage_key=None, m=32, c=8, encoding="utf8"):
         """
         Initialises the system.
 
@@ -54,6 +60,12 @@ class Emlog:
         # Generate ECDSA key-pair for signing message blocks w/SECP256R1 curve
         self.sig_k = ec.generate_private_key(ec.SECP256R1(), backend)
         self.ver_k = self.sig_k.public_key()
+
+        # Create new AES-GCM instance with a freshly generated
+        # 192-bit AES-GCM key if not supplied by the user
+        if storage_key == None:
+            storage_key = AESGCM.generate_key(bit_length=AES_GCM_KEY_BITS)
+        self.aesgcm = AESGCM(storage_key)
 
         # Derive initial IK and block key
         self.block_id = 1
@@ -79,7 +91,7 @@ class Emlog:
         Output: Fresh key derived from k and item_id using HKDF.
         """
         hkdf = HKDF(algorithm=hashes.SHA256(),
-                    length=32,
+                    length=SHA256_BYTES,
                     salt=None,
                     info=b"emlog",
                     backend=backend)
@@ -104,11 +116,18 @@ class Emlog:
                                ec.ECDSA(hashes.SHA256()))
 
     def _store_blocks(self):
+        """
+        Stores the current set of in-memory blocks to persistent storage.
+        192-bit AES-GCM is used by default for encrypting data to file.
+        """
         logger.verbose("Storing in-memory blocks to file...")
-        
 
-        raise NotImplementedError()
-
+        # Pickle each block and encrypt w/AES-GCM
+        for block in self.blocks:
+            pickle_obj = pickle.dumps(block)
+            iv = os.urandom(AES_GCM_IV_BYTES)
+            encrypted_bytes = self.aesgcm.encrypt(pickle_obj, iv)
+            
 
     def insert(self, msg):
         """
