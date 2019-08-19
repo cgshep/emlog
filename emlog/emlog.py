@@ -53,7 +53,7 @@ class Emlog:
 
         # Generate ECDSA key-pair for signing message blocks w/SECP256R1 curve
         self.sig_k = ec.generate_private_key(ec.SECP256R1(), backend)
-        self.ver_k = sig_k.public_key()
+        self.ver_k = self.sig_k.public_key()
 
         # Derive initial IK and block key
         self.block_id = 1
@@ -87,15 +87,13 @@ class Emlog:
         sig : Block signature
         """
         logger.debug("***** Generating block signature *****")
-        # Initialise hash object
         digest = hashes.Hash(hashes.SHA256(), backend=backend)
         for m in self.current_block_msgs:
-            logger.debug(f"Hashing {f}")
-            digest.update(m)
-        digest.finalize()
-        
-        # Generate signature from self.sig_k
-        
+            logger.debug(f"Hashing {m}")
+            digest.update(m.hmac)
+        digest_bytes = digest.finalize()
+        return self.sig_k.sign(digest_bytes,
+                               ec.ECDSA(hashes.SHA256()))
 
     def _store(self):
         raise NotImplementedError()
