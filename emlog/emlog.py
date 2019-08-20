@@ -115,7 +115,22 @@ class Emlog:
         return self.sig_k.sign(digest_bytes,
                                ec.ECDSA(hashes.SHA256()))
 
-    def _store_blocks(self):
+
+    def _write_encrypted_blocks(self, enc_blocks):
+        """
+        Writes a list of encrypted blocks to file.
+
+        Input:
+        enc_blocks : list of encrypted blocks in the form of dicts
+        with structure {"iv" : iv, "enc_bytes" : enc_bytes}.
+        """
+        # TODO:
+        # 1. Get date for filename
+        # 2. Save enc_blocks to file
+        raise NotImplementedError()
+
+
+    def _store_blocks(self, blocks):
         """
         Stores the current set of in-memory blocks to persistent storage.
         192-bit AES-GCM is used by default for encrypting data to file.
@@ -123,10 +138,15 @@ class Emlog:
         logger.verbose("Storing in-memory blocks to file...")
 
         # Pickle each block and encrypt w/AES-GCM
-        for block in self.blocks:
+        encrypted_blocks = []
+        for block in blocks:
             pickle_obj = pickle.dumps(block)
             iv = os.urandom(AES_GCM_IV_BYTES)
-            encrypted_bytes = self.aesgcm.encrypt(pickle_obj, iv)
+            encrypted_blocks.append({
+                "iv" : iv,
+                "enc_bytes" : self.aesgcm.encrypt(pickle_obj, iv)
+            })
+        _write_encrypted_blocks(encrypted_blocks)
             
 
     def insert(self, msg):
@@ -176,7 +196,7 @@ class Emlog:
             # After this, derive a new IK and, from it, derive a new BK.
             if self.block_id == self.c:
                 logger.debug("***** In-memory block limit reached *****")
-                self._store_blocks()
+                self._store_blocks(self.blocks)
                 del self.blocks
                 self.blocks = []
 
