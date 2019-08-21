@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from datetime import date
+from datetime import datetime
 
 __author__ = "Carlton Shepherd"
 
@@ -17,6 +17,7 @@ logger = logging.getLogger()
 AES_GCM_KEY_BITS = 192
 AES_GCM_IV_BYTES = 16
 SHA256_BYTES = 32
+
 
 class Block:
     def __init__(self, msgs, block_id, sig):
@@ -40,7 +41,7 @@ class Message:
 
 
 class Emlog:
-    def __init__(self, rlk_secret, storage_key=None, m=32, c=8, encoding="utf8"):
+    def __init__(self, rlk_secret, storage_key=None, m=5, c=8, encoding="utf8"):
         """
         Initialises the system.
 
@@ -57,7 +58,7 @@ class Emlog:
         # Derive root logging key (RLK) from the root secret
         self.rlk = self._derive_key(rlk_secret)
 
-        # Generate ECDSA key-pair for signing message blocks w/SECP256R1 curve
+        # Generate ECDSA (SECP256R1) key-pair for signing message blocks
         self.sig_k = ec.generate_private_key(ec.SECP256R1(), backend)
         self.ver_k = self.sig_k.public_key()
 
@@ -104,12 +105,12 @@ class Emlog:
         under sig_k over h(m_1.hmac, m_2.hmac, ..., m_n.hmac).
 
         Output:
-        sig : Block signature (using SECP256R1).
+        sig : Block ECDSA signature.
         """
-        logger.verbose("***** Generating block signature *****")
+        logger.debug("***** Generating block signature *****")
         digest = hashes.Hash(hashes.SHA256(), backend=backend)
         for m in self.current_block_msgs:
-            logger.verbose(f"Hashing {m}")
+            logger.debug(f"Hashing {m}")
             digest.update(m.hmac)
         digest_bytes = digest.finalize()
         return self.sig_k.sign(digest_bytes,
@@ -124,10 +125,10 @@ class Emlog:
         enc_blocks : list of encrypted blocks in the form of dicts
         with structure {"iv" : iv, "enc_bytes" : enc_bytes}.
         """
-        # TODO:
-        # 1. Get date for filename
-        # 2. Save enc_blocks to file
-        raise NotImplementedError()
+        f_path = "emlog_" + str(datetime.now()).replace(" ", "_") + ".log"
+        with open(f_path, "wb") as f:
+            logger.debug(f"Writing to {f_path}...")
+            f.write(pickle.dumps(enc_blocks))
 
 
     def _store_blocks(self, blocks):
@@ -135,18 +136,18 @@ class Emlog:
         Stores the current set of in-memory blocks to persistent storage.
         192-bit AES-GCM is used by default for encrypting data to file.
         """
-        logger.verbose("Storing in-memory blocks to file...")
+        logger.debug("Storing in-memory blocks to file...")
 
         # Pickle each block and encrypt w/AES-GCM
         encrypted_blocks = []
         for block in blocks:
-            pickle_obj = pickle.dumps(block)
+            pkl = pickle.dumps(block)
             iv = os.urandom(AES_GCM_IV_BYTES)
             encrypted_blocks.append({
                 "iv" : iv,
-                "enc_bytes" : self.aesgcm.encrypt(pickle_obj, iv)
+                "enc_bytes" : self.aesgcm.encrypt(pkl, iv, None)
             })
-        _write_encrypted_blocks(encrypted_blocks)
+        self._write_encrypted_blocks(encrypted_blocks)
             
 
     def insert(self, msg):
@@ -157,7 +158,7 @@ class Emlog:
         Input:
         msg : Message string (UTF-8 encoded)
         """
-        logger.verbose(f"Inserting msg: {msg}")
+        logger.debug(f"Inserting msg: {msg}")
 
         # Derive new message key from current block key if msg_id == 0
         # and initialise new block message list, otherwise derive
