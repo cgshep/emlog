@@ -10,7 +10,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 class Verifier:
     def __init__(self, fpath):
-        pass
+        # Unpickle data
+        unpickled_data = pickle.loads(fpath)
 
     def __str__(self):
         pass
