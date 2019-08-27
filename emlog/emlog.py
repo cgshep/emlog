@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 from datetime import datetime
 
 __author__ = "Carlton Shepherd"
@@ -193,14 +194,18 @@ class Emlog:
             self.blocks.append(Block(self.current_block_msgs, self.block_id, sig))
 
             # Check if in-memory block limit, c, is reached; if so,
-            # securely store to file and reset the block list.
-            # After this, derive a new IK and, from it, derive a new BK.
+            # securely store current blocks to file and reset the block list.
+            # After this, derive a new IK and, from it, a new BK.
             if self.block_id == self.c:
                 logger.debug("***** In-memory block limit reached *****")
                 self._store_blocks(self.blocks)
-                del self.blocks
                 self.blocks = []
-
                 # Derive new IK and BK
                 self.current_ik = self._derive_key(self.current_ik, self.block_id)
                 self.current_bk = self._derive_key(self.current_ik, self.block_id)
+
+
+# TODO allow output redirection of log files to emlog via terminal.
+# Add to main method below.
+if __name__ == '__main__':
+    pass
