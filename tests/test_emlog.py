@@ -1,13 +1,13 @@
-from emlog import emlog
+from emlog.emlog import Emlog
 import logging
 
 rlk_secret = b"test-secret"
-emlog = emlog.Emlog(rlk_secret)
+emlog = Emlog(rlk_secret)
 logger = logging.getLogger()
 
 # Use sample Apache access logs available freely from:
 # http://www.monitorware.com/en/logsamples/apache.php
-fpath = "test_data.log"
+fpath = "data/test_data.log"
 verifier_fpath = "emlog_2019-08-21_22:33:52.640899.log"
 with open(fpath) as f:
     data = f.readlines()
