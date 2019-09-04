@@ -33,9 +33,6 @@ class Message:
         self.msg_id = msg_id
         self.hmac = hmac
 
-    def __str__(self):
-        return f"[msg:{self.msg}, msg_id:{self.msg_id}, hmac:{self.hmac}]"
-
 class Emlog:
     def __init__(self, rlk_secret, storage_key=None, sig_key=None, ver_key=None, m=5, c=8, encoding="utf8", write_to_file=True):
         """
@@ -68,6 +65,7 @@ class Emlog:
 
         self.aesgcm = AESGCM(storage_key)
         self.block_id = 1
+        self.write_to_file = write_to_file
         self.current_ik = derive_key(self.rlk, self.block_id)
         self.current_bk = derive_key(self.current_ik, self.block_id)
         self.blocks = []
@@ -137,6 +135,11 @@ class Emlog:
         Input:
         msg : Message string (UTF-8 encoded)
         """
+        # Derive new block key if we've reset the message counter and
+        # block_id is not the first.
+        if self.msg_id == 1 and self.block_id > 1:
+            self.current_bk = derive_key(self.current_bk, self.block_id)
+            
         # Derive new message key from current block key if msg_id == 0
         # and initialise new block message list, otherwise derive
         # new message key from previous message key and new msg_id
@@ -145,6 +148,7 @@ class Emlog:
             self.current_block_msgs = []
         else:
             self.current_mk = derive_key(self.current_mk, self.msg_id)
+
 
         # Compute HMAC on msg text keyed under current_mk
         hmac_obj = hmac.HMAC(self.current_mk, hashes.SHA256(), backend)
@@ -160,18 +164,14 @@ class Emlog:
         else:
             sig = self._generate_block_sig()
             self.msg_id = 1
-
             self.blocks.append(Block(self.current_block_msgs, self.block_id, sig))
-
             # Check if in-memory block limit, c, is reached; if so,
             # securely store current blocks to file and reset the block list.
             # After this, derive a new IK and, from it, a new BK.
-            if self.block_id == self.c:
-                if write_to_file:
+            if self.block_id % self.c == 0:
+                if self.write_to_file:
                     self._store_blocks(self.blocks)
                 self.blocks = []
-
-                # Derive new IK and BK
                 self.current_ik = derive_key(self.current_ik, self.block_id)
                 self.current_bk = derive_key(self.current_ik, self.block_id)
             self.block_id += 1
