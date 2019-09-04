@@ -79,7 +79,8 @@ class Verifier:
             block_keys.append(last_block_key)
 
         if len(block_keys) != self.c:
-            raise UnexpectedNumberofBlockKeys("No. of block keys exceeds block group size!")
+            raise UnexpectedNumberofBlockKeys(
+                f"No. block keys ({len(block_keys)}) exceeds block group size ({self.c})!")
 
         # 3. Verify block signatures.
         for block in recovered_blocks:
@@ -87,7 +88,7 @@ class Verifier:
             try:
                 self.ver_k.verify(block.sig, block_digest_bytes, ec.ECDSA(hashes.SHA256()))
             except ec.InvalidSignature:
-                raise InvalidBlockSignature("Block {block.block_id} sig. failed to verify!")
+                raise InvalidBlockSignature(f"Block {block.block_id} sig. failed to verify!")
             
         # 4. Verify message HMACs 
         for i, block in enumerate(recovered_blocks):
@@ -103,4 +104,4 @@ class Verifier:
                 try:
                     verify_message(m, last_msg_key, self.encoding)
                 except InvalidSignature:
-                    raise InvalidMessageHMAC("Message {m.msg_id} HMAC failed to verify!")
+                    raise InvalidMessageHMAC(f"Message {m.msg_id} HMAC failed to verify!")
