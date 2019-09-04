@@ -82,7 +82,6 @@ class Emlog:
         block_digest_bytes = generate_block_digest(self.current_block_msgs)
         return self.sig_k.sign(block_digest_bytes, ec.ECDSA(hashes.SHA256()))
 
-
     def export_public_key(self, fpath):
         ver_k_bytes = self.ver_k.public_bytes(serialization.Encoding.PEM,
                                               serialization.PublicFormat.SubjectPublicKeyInfo)
@@ -110,7 +109,6 @@ class Emlog:
             logger.debug(f"Writing to {fpath}...")
             f.write(pickle.dumps(enc_blocks))
 
-
     def _store_blocks(self, blocks):
         """
         Stores the current set of in-memory blocks to persistent storage.
@@ -126,6 +124,11 @@ class Emlog:
             })
         self._write_encrypted_blocks(encrypted_blocks)
             
+    def finalize(self):
+        """
+        Writes remaining in-memory blocks to file.
+        """
+        self._store_blocks(self.blocks)
 
     def insert(self, msg):
         """
@@ -148,7 +151,6 @@ class Emlog:
             self.current_block_msgs = []
         else:
             self.current_mk = derive_key(self.current_mk, self.msg_id)
-
 
         # Compute HMAC on msg text keyed under current_mk
         hmac_obj = hmac.HMAC(self.current_mk, hashes.SHA256(), backend)
