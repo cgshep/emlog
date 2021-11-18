@@ -8,7 +8,7 @@ This is implementation is for research purposes only; it's released under GNU AG
 
 # Reference & Citation
 
-1. C. Shepherd, R. Akram, and K. Markantonakis, /"EmLog: Tamper-Resistant System Logging for Constrained Devices with TEEs."/ 11th IFIP International Conference on Information Security Theory and Practice (WISTP). Springer, 2017. [https://cs.gl/papers/emlog.pdf](https://cs.gl/papers/emlog.pdf)
+1. C. Shepherd, R. Akram, and K. Markantonakis, *"EmLog: Tamper-Resistant System Logging for Constrained Devices with TEEs."* 11th IFIP International Conference on Information Security Theory and Practice (WISTP). Springer, 2017. [https://cs.gl/papers/emlog.pdf](https://cs.gl/papers/emlog.pdf)
 
 ```
 @inproceedings{shepherd2017emlog,
